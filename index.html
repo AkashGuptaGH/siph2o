@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a1628">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SipH2O">
+<title>SipH2O</title>
+<link rel="manifest" id="pwaManifest">
+<script>
+  // Generate SVG icon as data URL
+  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="120" fill="#04111f"/>
+    <defs>
+      <linearGradient id="wg" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#38c4f0"/>
+        <stop offset="100%" style="stop-color:#1a8fc4"/>
+      </linearGradient>
+    </defs>
+    <path d="M256 96 C256 96 160 220 160 300 C160 355 203 400 256 400 C309 400 352 355 352 300 C352 220 256 96 256 96Z" fill="url(#wg)" opacity="0.95"/>
+    <text x="256" y="310" font-family="Georgia,serif" font-size="88" font-style="italic" font-weight="bold" fill="white" text-anchor="middle" opacity="0.35">2</text>
+  </svg>`;
+  const iconDataUrl = 'data:image/svg+xml;base64,' + btoa(svgIcon);
+
+  const manifest = {
+    name: "SipH2O",
+    short_name: "SipH2O",
+    description: "Water reminder & tracker",
+    start_url: "./",
+    display: "standalone",
+    background_color: "#04111f",
+    theme_color: "#0a1628",
+    icons: [
+      { src: iconDataUrl, sizes: "192x192", type: "image/svg+xml" },
+      { src: iconDataUrl, sizes: "512x512", type: "image/svg+xml" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+  const manifestUrl = URL.createObjectURL(blob);
+  document.getElementById('pwaManifest').href = manifestUrl;
+</script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04111f; --surface: #0a1e33; --surface2: #0f2a45; --accent: #38c4f0; --accent2: #1a8fc4;
+    --text: #e8f4fc; --muted: #7aadcc; --danger: #f05c5c; --success: #38f0a0; --border: rgba(56,196,240,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; position: relative; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56,196,240,0.12) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 30% at 80% 80%, rgba(26,143,196,0.08) 0%, transparent 60%);
+  }
+  .app { position: relative; z-index: 1; max-width: 420px; margin: 0 auto; padding: 0 0 100px; min-height: 100vh; }
+  header { padding: 52px 24px 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--text); letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); font-style: italic; }
+  .streak-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  
+  .glass-widget { margin: 8px 24px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 28px; overflow: hidden; position: relative; }
+  .glass-inner { padding: 28px 28px 24px; position: relative; z-index: 2; }
+  .glass-label { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .glass-amount { font-family: 'DM Serif Display', serif; font-size: 56px; line-height: 1; color: var(--text); letter-spacing: -2px; }
+  .glass-amount span { font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 300; color: var(--muted); letter-spacing: 0; }
+  .glass-goal { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  
+  .water-container { position: relative; height: 120px; margin-top: 20px; border-radius: 16px; overflow: hidden; background: rgba(10, 30, 51, 0.6); border: 1px solid var(--border); }
+  .water-fill { position: absolute; bottom: 0; left: 0; right: 0; transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); background: linear-gradient(to top, var(--accent2), var(--accent)); opacity: 0.85; }
+  .water-wave { position: absolute; top: -10px; left: -50%; width: 200%; height: 20px; background: inherit; border-radius: 40%; animation: wave 3s infinite linear; }
+  .water-wave2 { animation: wave 4s infinite linear reverse; opacity: 0.5; }
+  @keyframes wave { from { transform: translateX(0) rotate(0deg); } to { transform: translateX(25%) rotate(360deg); } }
+  .water-percent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'DM Serif Display', serif; font-size: 32px; color: var(--text); z-index: 3; text-shadow: 0 1px 8px rgba(0,0,0,0.5); }
+  
+  .quick-add { margin: 20px 24px 0; }
+  .section-title { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .quick-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .quick-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s; color: var(--text); font-family: inherit; }
+  .quick-btn:active { transform: scale(0.94); background: var(--surface2); border-color: var(--accent); }
+  .quick-btn .icon { font-size: 22px; } .quick-btn .ml { font-size: 11px; font-weight: 600; color: var(--accent); } .quick-btn .label { font-size: 9px; color: var(--muted); }
+  
+  .custom-add { margin: 14px 24px 0; display: flex; gap: 10px; }
+  .custom-input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; color: var(--text); font-family: inherit; font-size: 15px; outline: none; transition: border-color 0.2s; }
+  .custom-input:focus { border-color: var(--accent); }
+  .add-btn { background: var(--accent); border: none; border-radius: 14px; padding: 14px 20px; color: #04111f; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .add-btn:active { transform: scale(0.95); opacity: 0.85; }
+  
+  .reminder-section { margin: 24px 24px 0; }
+  .reminder-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
+  .reminder-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .reminder-info h3 { font-size: 15px; font-weight: 500; margin-bottom: 2px; } .reminder-info p { font-size: 12px; color: var(--muted); }
+  
+  .toggle { width: 48px; height: 26px; background: var(--surface2); border-radius: 13px; border: 1px solid var(--border); cursor: pointer; position: relative; transition: background 0.3s; flex-shrink: 0; }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .toggle.on::after { transform: translateX(22px); }
+  
+  .interval-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 12px; font-family: inherit; color: var(--muted); cursor: pointer; transition: all 0.2s; }
+  .pill.active { background: rgba(56,196,240,0.15); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  
+  .log-section { margin: 24px 24px 0; }
+  .log-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+  .log-item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; animation: slideIn 0.3s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .log-item .log-time { font-size: 12px; color: var(--muted); } .log-item .log-amount { font-size: 14px; font-weight: 600; color: var(--accent); }
+  .log-item .log-delete { font-size: 16px; cursor: pointer; color: var(--muted); opacity: 0.5; background: none; border: none; padding: 0 0 0 8px; }
+  .empty-log { text-align: center; color: var(--muted); font-size: 13px; padding: 20px; }
+  
+  .reset-btn { display: block; width: 100%; margin: 0; background: transparent; border: 1px solid rgba(240, 92, 92, 0.3); border-radius: 14px; padding: 15px; color: var(--danger); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: center; }
+  
+  .goal-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .goal-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; color: var(--text); font-family: inherit; font-size: 14px; width: 80px; outline: none; text-align: center; }
+  .goal-unit { font-size: 13px; color: var(--muted); }
+  .save-btn { background: rgba(56,196,240,0.15); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 14px; color: var(--accent); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  
+  .toast { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--accent); border-radius: 30px; padding: 12px 24px; font-size: 13px; font-weight: 500; color: var(--accent); opacity: 0; transition: all 0.3s; z-index: 100; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.4); pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">Sip<span>H₂O</span></div>
+    <div class="streak-badge"><span class="fire">🔥</span><span id="streakCount">0</span> day streak</div>
+  </header>
+
+  <div class="glass-widget">
+    <div class="glass-inner">
+      <div class="glass-label">Today's Intake</div>
+      <div class="glass-amount"><span id="currentMl">0</span> <span>ml</span></div>
+      <div class="glass-goal">Goal: <span id="goalDisplay">2000</span> ml</div>
+      <div class="water-container">
+        <div class="water-fill" id="waterFill" style="height:0%">
+          <div class="water-wave"></div><div class="water-wave water-wave2"></div>
+        </div>
+        <div class="water-percent" id="waterPercent">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="overachieveBanner" style="display:none; margin: 12px 24px 0; background: linear-gradient(135deg, rgba(56,240,160,0.12), rgba(56,196,240,0.12)); border: 1px solid rgba(56,240,160,0.3); border-radius: 16px; padding: 14px 18px; align-items: center; gap: 12px;">
+    <span style="font-size:24px;">🏆</span>
+    <div>
+      <div style="font-size:13px; font-weight:600; color:#38f0a0;">Goal Overachieved!</div>
+      <div style="font-size:12px; color:#7aadcc; margin-top:2px;">You're <span id="extraMl">0</span>ml beyond your goal.</div>
+    </div>
+  </div>
+
+  <div class="quick-add">
+    <div class="section-title">Quick Add</div>
+    <div class="quick-buttons">
+      <button class="quick-btn" onclick="addWater(150)"><span class="icon">☕</span><span class="ml">150ml</span><span class="label">Espresso</span></button>
+      <button class="quick-btn" onclick="addWater(250)"><span class="icon">🥤</span><span class="ml">250ml</span><span class="label">Cup</span></button>
+      <button class="quick-btn" onclick="addWater(350)"><span class="icon">🍵</span><span class="ml">350ml</span><span class="label">Mug</span></button>
+      <button class="quick-btn" onclick="addWater(500)"><span class="icon">💧</span><span class="ml">500ml</span><span class="label">Bottle</span></button>
+    </div>
+  </div>
+
+  <div class="custom-add">
+    <input class="custom-input" type="number" id="customMl" placeholder="Custom amount (ml)" min="1" max="2000">
+    <button class="add-btn" onclick="addCustom()">+ Add</button>
+  </div>
+
+  <div class="reminder-section">
+    <div class="section-title">Reminders</div>
+    <div class="reminder-card">
+      <div class="reminder-row">
+        <div class="reminder-info">
+          <h3>🔔 Cloud Push Reminders</h3>
+          <p id="reminderStatusText">Tap to enable background notifications</p>
+        </div>
+        <div class="toggle" id="notifyToggle" onclick="toggleNotifications()"></div>
+      </div>
+
+      <div id="reminderSettings" style="display:none;">
+        <div class="divider"></div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; font-weight:600; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px;">Remind me every</div>
+          <div class="interval-pills" id="intervalPills">
+            <button class="pill" onclick="setReminderInterval(30)">30 min</button>
+            <button class="pill active" onclick="setReminderInterval(60)">1 hour</button>
+            <button class="pill" onclick="setReminderInterval(90)">1.5 hrs</button>
+            <button class="pill" onclick="setReminderInterval(120)">2 hours</button>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center;">
+            <input type="number" id="customIntervalInput" placeholder="Custom (mins)" min="1" max="1440" style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; color:var(--text); font-family:inherit; font-size:13px; width: 130px; outline:none;">
+            <button class="save-btn" onclick="setCustomInterval()">Set</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reminder-section">
+    <div class="section-title">Daily Goal</div>
+    <div class="reminder-card">
+      <div class="goal-row">
+        <input class="goal-input" type="number" id="goalInput" value="2000" min="500" max="5000">
+        <span class="goal-unit">ml / day</span>
+        <button class="save-btn" onclick="saveGoal()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <div class="section-title">Today's Log</div>
+    <div class="log-list" id="logList"></div>
+  </div>
+
+  <div style="padding: 16px 24px 0;"><button class="reset-btn" onclick="resetDay()">🗑 Reset Today's Log</button></div>
+</div>
+
+<div id="confirmOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; align-items:center; justify-content:center; padding:24px;">
+  <div style="background:#0f2a45; border:1px solid rgba(56,196,240,0.2); border-radius:20px; padding:28px 24px; width:100%; max-width:320px;">
+    <p id="confirmMsg" style="font-size:15px; color:#e8f4fc; margin-bottom:24px; text-align:center;"></p>
+    <div style="display:flex; gap:12px;">
+      <button id="confirmNo" style="flex:1; background:transparent; border:1px solid rgba(56,196,240,0.2); border-radius:12px; padding:13px; color:#7aadcc; font-family:inherit; font-size:14px; cursor:pointer;">Cancel</button>
+      <button id="confirmYes" style="flex:1; background:rgba(240,92,92,0.15); border:1px solid #f05c5c; border-radius:12px; padding:13px; color:#f05c5c; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── PASTE YOUR VAPID PUBLIC KEY BELOW ──────────────────
+  const PUBLIC_VAPID_KEY = 'BIiKiOIsZ8TYZpzqg4gLzqOWdDy9TdgHLG3y0orXBDwtt2ug1rvJ8Gxt3-PCa49n5SNvv9owKdO5w4zF4P5oJQ4';
+  // ───────────────────────────────────────────────────────
+
+  let state = { totalMl: 0, goalMl: 2000, log: [], notificationsOn: false, intervalMin: 60, streak: 0, lastLogDate: null };
+  let swReg = null;
+
+  // Helper to convert VAPID key
+  function urlB64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+    return outputArray;
+  }
+
+  function loadState() {
+    try {
+      const saved = localStorage.getItem('siph2o_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const today = new Date().toDateString();
+        if (parsed.lastLogDate !== today) {
+          const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+          if (parsed.lastLogDate === yesterday.toDateString() && parsed.totalMl >= (parsed.goalMl || 2000)) {
+            parsed.streak = (parsed.streak || 0) + 1;
+          } else { parsed.streak = 0; }
+          parsed.totalMl = 0; parsed.log = []; parsed.lastLogDate = today;
+        }
+        state = { ...state, ...parsed };
+      } else { state.lastLogDate = new Date().toDateString(); }
+    } catch(e) {}
+  }
+  function saveState() { state.lastLogDate = new Date().toDateString(); localStorage.setItem('siph2o_state', JSON.stringify(state)); }
+
+  // True Cloud Push Service Worker
+  const SW_CODE = `
+    self.addEventListener('push', function(e) {
+      let data = { title: '💧 SipH2O', body: 'Time to drink some water! Keep that streak going.' };
+      try { if (e.data) data = e.data.json(); } catch(err) {}
+      
+      const options = {
+        body: data.body,
+        icon: 'https://cdn-icons-png.flaticon.com/512/3105/3105807.png',
+        tag: 'water-push',
+        renotify: true,
+        vibrate: [200, 100, 200]
+      };
+      
+      e.waitUntil( self.registration.showNotification(data.title, options) );
+    });
+
+    self.addEventListener('notificationclick', function(e) {
+      e.notification.close();
+      e.waitUntil(clients.matchAll({ type: 'window' }).then(clientsArr => {
+        if (clientsArr.length) return clientsArr[0].focus();
+        return clients.openWindow('/');
+      }));
+    });
+  `;
+
+  async function registerSW() {
+    if (!('serviceWorker' in navigator)) return false;
+    try {
+      const blob = new Blob([SW_CODE], { type: 'application/javascript' });
+      swReg = await navigator.serviceWorker.register(URL.createObjectURL(blob), { scope: './' });
+      await navigator.serviceWorker.ready;
+      return true;
+    } catch(e) { return false; }
+  }
+
+  async function subscribeToBackend(interval) {
+    try {
+      showToast('Connecting to cloud server...');
+      const subscription = await swReg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(PUBLIC_VAPID_KEY)
+      });
+
+      const response = await fetch('/.netlify/functions/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: subscription, interval_min: interval })
+      });
+
+      if (!response.ok) throw new Error('Backend failed');
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  }
+
+  async function toggleNotifications() {
+    if (!('Notification' in window)) { showToast('Push not supported'); return; }
+    
+    // TURN OFF
+    if (state.notificationsOn) {
+      state.notificationsOn = false; saveState(); updateUI();
+      if (swReg) {
+        const sub = await swReg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+      }
+      showToast('Cloud Reminders Disabled');
+      return;
+    }
+
+    // TURN ON
+    if (Notification.permission === 'denied') { showToast('Blocked in browser settings'); return; }
+    let perm = Notification.permission;
+    if (perm !== 'granted') perm = await Notification.requestPermission();
+    if (perm !== 'granted') { showToast('Permission denied'); return; }
+
+    const swOk = await registerSW();
+    if (!swOk) { showToast('Service worker error'); return; }
+
+    const success = await subscribeToBackend(state.intervalMin);
+    if (success) {
+      state.notificationsOn = true; saveState(); updateUI();
+      showToast(`Active! Next reminder in ${state.intervalMin}m ☁️`);
+    } else {
+      showToast('Error saving to database');
+    }
+  }
+
+  async function setReminderInterval(min) {
+    state.intervalMin = min; saveState(); updateIntervalPillsUI();
+    if (state.notificationsOn) {
+      const success = await subscribeToBackend(min);
+      if (success) showToast(`Updated! Reminding every ${min}m`);
+    }
+  }
+
+  function setCustomInterval() {
+    const val = parseInt(document.getElementById('customIntervalInput').value);
+    if (val && val > 0) setReminderInterval(val);
+    else showToast('Enter valid minutes');
+  }
+
+  // ── UI Logic ─────────────────────────────────────────────
+  function updateUI() {
+    const rawPct = Math.round((state.totalMl / state.goalMl) * 100);
+    const pct = Math.min(100, rawPct); const over = rawPct > 100;
+    document.getElementById('currentMl').textContent = state.totalMl;
+    document.getElementById('goalDisplay').textContent = state.goalMl;
+    document.getElementById('waterPercent').textContent = over ? '🏆' : pct + '%';
+    document.getElementById('waterFill').style.height = pct + '%';
+    document.getElementById('streakCount').textContent = state.streak;
+
+    const banner = document.getElementById('overachieveBanner');
+    if (over) { banner.style.display = 'flex'; document.getElementById('extraMl').textContent = state.totalMl - state.goalMl; }
+    else banner.style.display = 'none';
+
+    const logList = document.getElementById('logList');
+    if (state.log.length === 0) logList.innerHTML = '<div class="empty-log">No drinks logged yet today 💧</div>';
+    else {
+      logList.innerHTML = [...state.log].reverse().map((entry, i) => `
+        <div class="log-item">
+          <span class="log-time">${entry.time}</span>
+          <span class="log-amount">+${entry.ml} ml</span>
+          <button class="log-delete" onclick="deleteLog(${state.log.length - 1 - i})">✕</button>
+        </div>`).join('');
+    }
+
+    const on = state.notificationsOn;
+    document.getElementById('notifyToggle').classList.toggle('on', on);
+    document.getElementById('reminderSettings').style.display = on ? 'block' : 'none';
+    const st = document.getElementById('reminderStatusText');
+    st.textContent = on ? 'Active — connected to cloud server' : 'Tap to enable background push';
+    st.style.color = on ? 'var(--success)' : 'var(--muted)';
+    
+    updateIntervalPillsUI();
+  }
+
+  function updateIntervalPillsUI() {
+    const intervals = [30, 60, 90, 120];
+    const pills = document.querySelectorAll('#intervalPills .pill');
+    let isCustom = true;
+    pills.forEach((p, i) => { const isActive = intervals[i] === state.intervalMin; p.classList.toggle('active', isActive); if (isActive) isCustom = false; });
+    const ci = document.getElementById('customIntervalInput');
+    if (ci) { ci.value = isCustom ? state.intervalMin : ''; ci.style.borderColor = isCustom ? 'var(--accent)' : 'var(--border)'; }
+  }
+
+  function addWater(ml) {
+    state.totalMl += ml; state.log.push({ ml, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+    if (state.totalMl >= state.goalMl && state.totalMl - ml < state.goalMl) showToast('🏆 Goal reached!');
+    else showToast(`+${ml}ml added! 💧`);
+    saveState(); updateUI();
+  }
+  function addCustom() { const v = parseInt(document.getElementById('customMl').value); if (v>0 && v<=2000) { addWater(v); document.getElementById('customMl').value = ''; } }
+  function deleteLog(i) { state.totalMl = Math.max(0, state.totalMl - state.log[i].ml); state.log.splice(i, 1); saveState(); updateUI(); }
+  function saveGoal() { const v = parseInt(document.getElementById('goalInput').value); if (v>=500) { state.goalMl = v; saveState(); updateUI(); showToast('Goal updated ✓'); } }
+  function resetDay() { showConfirm('Reset today?', () => { state.totalMl = 0; state.log = []; saveState(); updateUI(); showToast('Log reset ✓'); }); }
+
+  function showConfirm(msg, onConfirm) {
+    const overlay = document.getElementById('confirmOverlay'); document.getElementById('confirmMsg').textContent = msg; overlay.style.display = 'flex';
+    document.getElementById('confirmYes').onclick = () => { overlay.style.display = 'none'; onConfirm(); };
+    document.getElementById('confirmNo').onclick = () => { overlay.style.display = 'none'; };
+  }
+  let toastTimer; function showToast(msg) {
+    const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  }
+
+  loadState(); updateUI();
+  if (state.notificationsOn && Notification.permission === 'granted') registerSW();
+</script>
+</body>
+</html>
